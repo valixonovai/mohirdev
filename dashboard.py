@@ -34,7 +34,7 @@ html, body, .stApp { font-family: 'Inter', sans-serif; color: #1a2029; }
 h1, h2, h3, h4 { color: #10233a; letter-spacing: -0.01em; }
 [data-testid="stMetric"] { background: #f6f9fc; border: 1px solid #d3dde8;
     border-radius: 10px; padding: 15px 17px; }
-[data-testid="stMetricLabel"] { color: #344054; font-size: .82rem; }
+[data-testid="stMetricLabel"] { color: #10233a; font-size: .82rem; }
 [data-testid="stMetricValue"] { color: #10233a; }
 [data-testid="stMetricDelta"] * { color: #1a2029; }
 section[data-testid="stSidebar"], div[data-testid="stSidebarContent"] { background: #eef2f7; }
