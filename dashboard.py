@@ -4,6 +4,7 @@ import numpy as np
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from pathlib import Path
 
 st.set_page_config(page_title="TechBazar — Xarid qarorlari", page_icon="📊",
@@ -22,24 +23,27 @@ STORE_UZ = {"online": "Onlayn", "offline": "Do'kon", "both": "Ikkalasi"}
 OY = {1: "Yan", 2: "Fev", 3: "Mar", 4: "Apr", 5: "May", 6: "Iyun",
       7: "Iyul", 8: "Avg", 9: "Sen", 10: "Okt", 11: "Noy", 12: "Dek"}
 
-ACCENT = "#0f4c81"
-GOOD, MID, BAD = "#1f9d55", "#e0a800", "#d64545"
+ACCENT = "#58a6ff"
+GOOD, MID, BAD = "#3fb950", "#d29922", "#f85149"
+pio.templates.default = "plotly_dark"
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, .stApp { font-family: 'Inter', sans-serif; color: #1a2029; }
+html, body, .stApp { font-family: 'Inter', sans-serif; color: #e6edf3; background: #0e1117; }
 .block-container { padding-top: 1.2rem; padding-bottom: 2.5rem; max-width: 1400px; }
 #MainMenu, footer, [data-testid="stToolbar"] { visibility: hidden; }
-h1, h2, h3, h4 { color: #10233a; letter-spacing: -0.01em; }
-[data-testid="stMetric"] { background: #f6f9fc; border: 1px solid #d3dde8;
+h1, h2, h3, h4, h1 *, h2 *, h3 *, h4 * { color: #ffffff !important; letter-spacing: -0.01em; }
+p, li, span, label, div { color: #e6edf3; }
+[data-testid="stMetric"] { background: #161c27; border: 1px solid #2b3543;
     border-radius: 10px; padding: 15px 17px; }
-[data-testid="stMetricLabel"] { color: #344054; font-size: .82rem; }
-[data-testid="stMetricValue"] { color: #10233a; }
-[data-testid="stMetricDelta"] * { color: #1a2029; }
-section[data-testid="stSidebar"], div[data-testid="stSidebarContent"] { background: #eef2f7; }
-section[data-testid="stSidebar"] * { color: #10233a !important; }
+[data-testid="stMetricLabel"] { color: #9aa7b8; font-size: .82rem; }
+[data-testid="stMetricValue"] { color: #ffffff; }
+[data-testid="stMetricDelta"] * { color: #e6edf3; }
+section[data-testid="stSidebar"], div[data-testid="stSidebarContent"] { background: #12161f; }
+section[data-testid="stSidebar"] * { color: #e6edf3 !important; }
 section[data-testid="stSidebar"] label { font-weight: 600; }
+[data-baseweb="tab-list"] button p, .stTabs [data-baseweb="tab"] { color: #e6edf3; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -101,8 +105,8 @@ unit_sum = (dff.groupby("category_uz")["net_profit"].sum()
             / dff.groupby("category_uz")["units_sold"].sum()).sort_values(ascending=False)
 
 st.markdown(
-    f"<div style='background:#eef5fb;border:1px solid #c7dcea;border-left:5px solid {ACCENT};"
-    f"border-radius:8px;padding:15px 19px;font-size:1.02rem;line-height:1.55;'>"
+    f"<div style='background:#16202e;border:1px solid #2b3a4a;border-left:5px solid {ACCENT};"
+    f"border-radius:8px;padding:15px 19px;font-size:1.02rem;line-height:1.55;color:#e6edf3;'>"
     f"<b>Xulosa:</b> jami sof foydada <b>{cat_sum.idxmax()}</b> yetakchi. "
     f"Birlik foydasi eng yuqori — <b>{unit_sum.idxmax()}</b> (&#36;{unit_sum.max():,.0f}/dona), "
     f"eng past — <b>{unit_sum.idxmin()}</b> (&#36;{unit_sum.min():,.0f}/dona).</div>",
@@ -135,8 +139,8 @@ for c in pivot_oy.index:
 st.dataframe(pd.DataFrame(qatorlar), use_container_width=True, hide_index=True)
 
 st.markdown(
-    "<div style='background:#f4f8f4;border-left:5px solid #1f9d55;border-radius:8px;"
-    "padding:13px 18px;font-size:.98rem;'>"
+    "<div style='background:#16202e;border-left:5px solid #3fb950;border-radius:8px;"
+    "padding:13px 18px;font-size:.98rem;color:#e6edf3;'>"
     "<b>Qoida:</b> eng yaxshi oylardan 2–3 hafta oldin zaxira ko'paytiring, "
     "sekin oylarda esa buyurtmani kamaytiring — shunda tovar omborda qotib qolmaydi.</div>",
     unsafe_allow_html=True)
@@ -217,7 +221,7 @@ with r_r:
         col = BAD if r["rate"] >= 4.9 else (MID if r["rate"] >= 4.5 else GOOD)
         st.markdown(
             f"<div style='display:flex;justify-content:space-between;padding:5px 0;"
-            f"border-bottom:1px solid #eee;'><span>{r['category_uz']}</span>"
+            f"border-bottom:1px solid #2b3a4a;'><span>{r['category_uz']}</span>"
             f"<b style='color:{col}'>{r['rate']:.2f}%</b></div>", unsafe_allow_html=True)
     st.caption("4.5% dan yuqori tovarlarni qaytish sababini tekshiring — bu yashirin zarar.")
 
@@ -342,10 +346,10 @@ for idx, key in enumerate(["KO'PROQ OL", "SAQLA", "KAMAYTIR"]):
         st.markdown(f"#### {emoji} {title}")
         for name, _, color, profit, unit in items:
             st.markdown(
-                f"<div style='border:1px solid #d3dde8;border-left:4px solid {color};"
-                f"border-radius:10px;padding:13px 15px;margin:6px 0;background:#f6f9fc;'>"
-                f"<div style='font-weight:700;color:#10233a'>{name}</div>"
-                f"<div style='color:#475467;font-size:.85rem'>"
+                f"<div style='border:1px solid #2b3a4a;border-left:4px solid {color};"
+                f"border-radius:10px;padding:13px 15px;margin:6px 0;background:#16202e;'>"
+                f"<div style='font-weight:700;color:#e6edf3'>{name}</div>"
+                f"<div style='color:#9aa7b8;font-size:.85rem'>"
                 f"Sof foyda &#36;{profit/1e6:.1f}M · &#36;{unit:,.0f}/dona</div></div>",
                 unsafe_allow_html=True)
 
