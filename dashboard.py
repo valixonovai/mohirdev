@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -7,106 +7,128 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from pathlib import Path
 
-st.set_page_config(page_title="TechBazar — Xarid qarorlari", page_icon="📊",
-                   layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="TechBazar · Xarid qarorlari paneli",
+                   page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 
 CAT_UZ = {
     "smartphones": "Smartfonlar", "laptops": "Noutbuklar", "gaming": "Geyming",
-    "tablets": "Planshetlar", "wireless_audio": "Simsiz audio",
-    "wearables": "Soat/taqiladigan", "cameras": "Kameralar",
-    "smart_home": "Aqlli uy", "cables_chargers": "Kabellar/zaryadlovchi",
-    "storage_devices": "Xotira qurilmalari",
+    "tablets": "Planshetlar", "wireless_audio": "Simsiz audio", "wearables": "Soat/taqiladigan",
+    "cameras": "Kameralar", "smart_home": "Aqlli uy",
+    "cables_chargers": "Kabellar/zaryadlovchi", "storage_devices": "Xotira qurilmalari",
 }
 REGION_UZ = {"Tashkent": "Toshkent", "Samarkand": "Samarqand", "Bukhara": "Buxoro",
              "Andijan": "Andijon", "Namangan": "Namangan"}
 STORE_UZ = {"online": "Onlayn", "offline": "Do'kon", "both": "Ikkalasi"}
-OY = {1: "Yan", 2: "Fev", 3: "Mar", 4: "Apr", 5: "May", 6: "Iyun",
-      7: "Iyul", 8: "Avg", 9: "Sen", 10: "Okt", 11: "Noy", 12: "Dek"}
 
-ACCENT = "#58a6ff"
-GOOD, MID, BAD = "#3fb950", "#d29922", "#f85149"
-pio.templates.default = "plotly_dark"
+ACCENT = "#0f4c81"
+GOOD, MID, BAD = "#1f9d55", "#e0a800", "#d64545"
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, .stApp { font-family: 'Inter', sans-serif; color: #e6edf3; background: #0e1117; }
+html, body, .stApp { font-family: 'Inter', sans-serif; color: #1a2029; }
 .block-container { padding-top: 1.2rem; padding-bottom: 2.5rem; max-width: 1400px; }
 #MainMenu, footer, [data-testid="stToolbar"] { visibility: hidden; }
-h1, h2, h3, h4, h1 *, h2 *, h3 *, h4 * { color: #ffffff !important; letter-spacing: -0.01em; }
-p, li, span, label, div { color: #e6edf3; }
-[data-testid="stMetric"] { background: #161c27; border: 1px solid #2b3543;
+h1, h2, h3, h4 { color: #10233a; letter-spacing: -0.01em; }
+[data-testid="stMetric"] { background: #f6f9fc; border: 1px solid #d3dde8;
     border-radius: 10px; padding: 15px 17px; }
-[data-testid="stMetricLabel"] { color: #9aa7b8; font-size: .82rem; }
-[data-testid="stMetricValue"] { color: #ffffff; }
-[data-testid="stMetricDelta"] * { color: #e6edf3; }
-section[data-testid="stSidebar"], div[data-testid="stSidebarContent"] { background: #12161f; }
-section[data-testid="stSidebar"] * { color: #e6edf3 !important; }
+[data-testid="stMetricLabel"] { color: #344054; font-size: .82rem; }
+[data-testid="stMetricValue"] { color: #10233a; }
+[data-testid="stMetricDelta"] * { color: #1a2029; }
+section[data-testid="stSidebar"], div[data-testid="stSidebarContent"] { background: #eef2f7; }
+section[data-testid="stSidebar"] * { color: #10233a !important; }
 section[data-testid="stSidebar"] label { font-weight: 600; }
-[data-baseweb="tab-list"] button p, .stTabs [data-baseweb="tab"] { color: #e6edf3; }
 </style>
 """, unsafe_allow_html=True)
 
-
+# ---------------- Ma'lumot: yuklash va tozalash ----------------
 @st.cache_data
 def load_data():
-    d = pd.read_csv(Path(__file__).resolve().parent / "dataset.csv")
-    d["gross"] = d["avg_unit_price"] * d["units_sold"]
-    mask = d["monthly_revenue"] / d["gross"] > 3
-    d["revenue_fixed"] = np.where(mask, d["gross"] * (1 - d["discount_pct"] / 100),
-                                  d["monthly_revenue"])
-    d["returns_loss"] = d["returns"] * d["avg_unit_price"] * (1 - d["discount_pct"] / 100)
-    d["net_revenue"] = d["revenue_fixed"] - d["returns_loss"]
-    d["net_profit"] = d["net_revenue"] - d["marketing_spend"]
-    d["return_rate"] = d["returns"] / d["units_sold"]
-    d["category_uz"] = d["category"].map(CAT_UZ)
-    d["region_uz"] = d["region"].map(REGION_UZ)
-    d["store_uz"] = d["store_type"].map(STORE_UZ)
-    return d
+    here = Path(__file__).resolve().parent
+    df = pd.read_csv(here / "dataset.csv")
+    df["gross"] = df["avg_unit_price"] * df["units_sold"]
 
+    # Yashirin pattern 1: 5 ta mahsulotda revenue ~10x xato (vergul xatosi)
+    mask = (df["monthly_revenue"] / df["gross"]) > 3
+    df["revenue_fixed"] = np.where(mask, df["gross"] * (1 - df["discount_pct"] / 100),
+                                   df["monthly_revenue"])
+    df["is_outlier"] = mask
+
+    # Yashirin pattern 2: returns daromaddan ayirilmagan -> tuzatish
+    df["returns_loss"] = df["returns"] * df["avg_unit_price"] * (1 - df["discount_pct"] / 100)
+    df["net_revenue"] = df["revenue_fixed"] - df["returns_loss"]
+    df["net_profit"] = df["net_revenue"] - df["marketing_spend"]
+
+    df["return_rate"] = df["returns"] / df["units_sold"]
+    df["category_uz"] = df["category"].map(CAT_UZ)
+    df["region_uz"] = df["region"].map(REGION_UZ)
+    df["store_uz"] = df["store_type"].map(STORE_UZ)
+    df["yr_mo"] = df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2)
+    df["month_label"] = df["month"].map({
+        1: "Yan", 2: "Fev", 3: "Mar", 4: "Apr", 5: "May", 6: "Iyun",
+        7: "Iyul", 8: "Avg", 9: "Sen", 10: "Okt", 11: "Noy", 12: "Dek"})
+    # Foyda marjasi (sof daromad / daromad, marketing kiritilgan)
+    df["contribution_pct"] = df["net_profit"] / df["revenue_fixed"] * 100
+    return df
 
 df = load_data()
 
+# ================= SIDEBAR: filtrlarni o'rnatish =================
 with st.sidebar:
-    st.markdown("## Filtrlar")
-    years = st.multiselect("Yil", sorted(df["year"].unique()), sorted(df["year"].unique()))
-    regions = st.multiselect("Hudud", sorted(df["region_uz"].unique()), sorted(df["region_uz"].unique()))
-    stores = st.multiselect("Kanal", sorted(df["store_uz"].unique()), sorted(df["store_uz"].unique()))
-    cats = st.multiselect("Kategoriya", sorted(df["category_uz"].unique()), sorted(df["category_uz"].unique()))
+    st.markdown("## ⚙️ Filtrlar")
+    years = st.multiselect("Yil", sorted(df["year"].unique()),
+                           default=sorted(df["year"].unique()))
+    regions = st.multiselect("Hudud", sorted(df["region_uz"].unique()),
+                             default=sorted(df["region_uz"].unique()))
+    stores = st.multiselect("Savdo kanali", sorted(df["store_uz"].unique()),
+                            default=sorted(df["store_uz"].unique()))
+    cats = st.multiselect("Kategoriya", sorted(df["category_uz"].unique()),
+                          default=sorted(df["category_uz"].unique()))
+    st.divider()
+    st.caption("Barcha raqamlar qaytarilgan tovarlar va marketing xarajati ayirilgan **sof qiymatda**.")
 
-dff = df[df["year"].isin(years) & df["region_uz"].isin(regions)
-         & df["store_uz"].isin(stores) & df["category_uz"].isin(cats)]
+dff = df[(df["year"].isin(years)) & (df["region_uz"].isin(regions))
+         & (df["store_uz"].isin(stores)) & (df["category_uz"].isin(cats))]
 
-
-def agg(sub):
+def kpi_agg(sub):
     return dict(rev=sub["revenue_fixed"].sum(), profit=sub["net_profit"].sum(),
-                ret=sub["returns_loss"].sum(), mkt=sub["marketing_spend"].sum(),
+                returns=sub["returns_loss"].sum(), mkt=sub["marketing_spend"].sum(),
                 units=sub["units_sold"].sum())
 
+# YoY delta (2024 vs 2023)
+_grp = df.groupby("year").apply(lambda s: pd.Series(kpi_agg(s)), include_groups=False)
+yoy_profit = (_grp.loc[2024, "profit"] / _grp.loc[2023, "profit"] - 1) * 100 if set(years) == {2023, 2024} else None
+yoy_rev = (_grp.loc[2024, "rev"] / _grp.loc[2023, "rev"] - 1) * 100 if set(years) == {2023, 2024} else None
 
-cur = agg(dff)
-_y = df.groupby("year").apply(lambda s: pd.Series(agg(s)), include_groups=False)
-yoy = (_y.loc[2024, "profit"] / _y.loc[2023, "profit"] - 1) * 100 if set(years) == {2023, 2024} else None
-ret_pct = cur["ret"] / cur["rev"] * 100 if cur["rev"] else 0
-roi = cur["profit"] / cur["mkt"] if cur["mkt"] else 0
+cur = kpi_agg(dff)
+if cur["rev"] > 0:
+    ret_pct = cur["returns"] / cur["rev"] * 100
+    mkt_roi = cur["profit"] / cur["mkt"]
+else:
+    ret_pct = mkt_roi = 0
 
-st.title("TechBazar — Xarid qarorlari")
-st.caption("Elektronika chakana savdo · sof foyda asosidagi qaror paneli · 2023–2024")
+# ================= SARLAVHA =================
+st.title("TechBazar — Xarid qarorlari paneli")
+st.caption("Elektronika chakana savdo · sof foyda asosidagi qaror tahlili · 2023–2024")
 
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Jami sof foyda", f"${cur['profit']/1e6:,.1f}M", f"{yoy:+.1f}% YoY" if yoy is not None else None)
-k2.metric("Sof daromad", f"${cur['rev']/1e6:,.1f}M")
-k3.metric("Qaytarish zarari", f"${cur['ret']/1e6:,.1f}M", f"{ret_pct:.1f}%", delta_color="inverse")
-k4.metric("Marketing ROI", f"${roi:,.1f}")
-k5.metric("Sotilgan dona", f"{cur['units']/1e6:,.1f}M")
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Jami sof foyda", f"${cur['profit']/1e6:,.1f}M",
+          f"{(yoy_profit or 0):+.1f}% YoY" if yoy_profit is not None else None)
+c2.metric("Jami sof daromad", f"${cur['rev']/1e6:,.1f}M",
+          f"{(yoy_rev or 0):+.1f}% YoY" if yoy_rev is not None else None)
+c3.metric("Qaytarilgan tovar zarari", f"${cur['returns']/1e6:,.1f}M",
+          f"{ret_pct:.1f}% daromaddan", delta_color="inverse")
+c4.metric("Marketing ROI", f"${mkt_roi:,.1f}",
+          "har $1 ga foyda")
+c5.metric("Sotilgan dona", f"{cur['units']/1e6:,.1f}M")
 
 cat_sum = dff.groupby("category_uz")["net_profit"].sum().sort_values(ascending=False)
 unit_sum = (dff.groupby("category_uz")["net_profit"].sum()
             / dff.groupby("category_uz")["units_sold"].sum()).sort_values(ascending=False)
 
 st.markdown(
-    f"<div style='background:#16202e;border:1px solid #2b3a4a;border-left:5px solid {ACCENT};"
-    f"border-radius:8px;padding:15px 19px;font-size:1.02rem;line-height:1.55;color:#e6edf3;'>"
+    f"<div style='background:#eef5fb;border:1px solid #c7dcea;border-left:5px solid {ACCENT};"
+    f"border-radius:8px;padding:15px 19px;font-size:1.02rem;line-height:1.55;'>"
     f"<b>Xulosa:</b> jami sof foydada <b>{cat_sum.idxmax()}</b> yetakchi. "
     f"Birlik foydasi eng yuqori — <b>{unit_sum.idxmax()}</b> (&#36;{unit_sum.max():,.0f}/dona), "
     f"eng past — <b>{unit_sum.idxmin()}</b> (&#36;{unit_sum.min():,.0f}/dona).</div>",
@@ -139,8 +161,8 @@ for c in pivot_oy.index:
 st.dataframe(pd.DataFrame(qatorlar), use_container_width=True, hide_index=True)
 
 st.markdown(
-    "<div style='background:#16202e;border-left:5px solid #3fb950;border-radius:8px;"
-    "padding:13px 18px;font-size:.98rem;color:#e6edf3;'>"
+    "<div style='background:#f4f8f4;border-left:5px solid #1f9d55;border-radius:8px;"
+    "padding:13px 18px;font-size:.98rem;'>"
     "<b>Qoida:</b> eng yaxshi oylardan 2–3 hafta oldin zaxira ko'paytiring, "
     "sekin oylarda esa buyurtmani kamaytiring — shunda tovar omborda qotib qolmaydi.</div>",
     unsafe_allow_html=True)
@@ -149,79 +171,97 @@ st.subheader("Savdo va foyda dinamikasi")
 tr = dff.groupby(["year", "month"]).agg(
     rev=("revenue_fixed", "sum"), profit=("net_profit", "sum")).reset_index()
 tr["x"] = (tr["year"] - 2023) * 12 + tr["month"]
+tr["oy"] = tr["month"].map({1:"Yan",2:"Fev",3:"Mar",4:"Apr",5:"May",6:"Iyun",
+                            7:"Iyul",8:"Avg",9:"Sen",10:"Okt",11:"Noy",12:"Dek"})
 tr = tr.sort_values("x")
 
-fig_tr = go.Figure()
-fig_tr.add_trace(go.Scatter(x=[OY[m] for m in tr["month"]], y=tr["rev"] / 1e6,
-                            name="Sof daromad", mode="lines+markers",
-                            line=dict(color=ACCENT, width=3)))
-fig_tr.add_trace(go.Scatter(x=[OY[m] for m in tr["month"]], y=tr["profit"] / 1e6,
-                            name="Sof foyda", mode="lines+markers",
-                            line=dict(color=GOOD, width=3, dash="dot"),
-                            fill="tozeroy", fillcolor="rgba(31,157,85,.08)"))
-fig_tr.update_layout(height=330, margin=dict(l=10, r=10, t=10, b=10),
-                     legend=dict(orientation="h", y=1.1, x=0),
-                     yaxis_title="$ mln", hovermode="x unified")
-st.plotly_chart(fig_tr, use_container_width=True)
+fig_t = go.Figure()
+fig_t.add_trace(go.Scatter(x=tr["oy"], y=tr["rev"]/1e6, name="Sof daromad",
+                           mode="lines+markers", line=dict(color=ACCENT, width=3),
+                           customdata=tr["year"], hovertemplate="%{y:.1f}M · %{customdata}"))
+fig_t.add_trace(go.Scatter(x=tr["oy"], y=tr["profit"]/1e6, name="Sof foyda",
+                           mode="lines+markers", line=dict(color=GOOD, width=3, dash="dot"),
+                           fill="tozeroy", fillcolor="rgba(31,157,85,.08)",
+                           customdata=tr["year"], hovertemplate="%{y:.1f}M · %{customdata}"))
+fig_t.update_layout(height=340, margin=dict(l=10, r=10, t=30, b=10),
+                    legend=dict(orientation="h", y=1.12, x=0),
+                    xaxis_title="", yaxis_title="$ mln",
+                    hovermode="x unified")
+st.plotly_chart(fig_t, use_container_width=True)
 
-st.subheader("Kategoriyalar — sof foyda va birlik foydasi")
+# ================= KATEGORIYA REYTINGI =================
+st.subheader("Kategoriyalar bo'yicha sof foyda va birlik foydasi")
 cat = dff.groupby("category_uz").agg(
-    profit=("net_profit", "sum"), units=("units_sold", "sum")).reset_index()
-cat["unit"] = cat["profit"] / cat["units"]
+    profit=("net_profit", "sum"), units=("units_sold", "sum"),
+    rev=("revenue_fixed", "sum")).reset_index()
+cat["unit_profit"] = cat["profit"] / cat["units"]
+cat["share"] = cat["profit"] / cat["profit"].sum() * 100
 cat = cat.sort_values("profit", ascending=False)
 
-c_l, c_r = st.columns([3, 2])
-with c_l:
-    f1 = px.bar(cat, x="profit", y="category_uz", orientation="h", color="profit",
-                color_continuous_scale="Blues", text=cat["profit"].map(lambda v: f"${v/1e6:.1f}M"),
-                labels={"profit": "Sof foyda ($)", "category_uz": ""})
-    f1.update_traces(textposition="outside")
-    f1.update_layout(height=430, showlegend=False, coloraxis_showscale=False,
-                     yaxis=dict(categoryorder="total ascending"), margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(f1, use_container_width=True)
-with c_r:
-    cu = cat.sort_values("unit")
-    f2 = px.bar(cu, x="unit", y="category_uz", orientation="h", color="unit",
-                color_continuous_scale="Greens", text=cu["unit"].map(lambda v: f"${v:,.0f}"),
-                labels={"unit": "$ / dona", "category_uz": ""})
-    f2.update_traces(textposition="outside")
-    f2.update_layout(height=430, showlegend=False, coloraxis_showscale=False,
-                     yaxis=dict(categoryorder="total ascending"), margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(f2, use_container_width=True)
+colL, colR = st.columns([3, 2])
+with colL:
+    fig = px.bar(cat, x="profit", y="category_uz", orientation="h",
+                 color="profit", color_continuous_scale="Blues",
+                 text=cat["profit"].map(lambda v: f"${v/1e6:.1f}M"),
+                 labels={"profit": "Sof foyda ($)", "category_uz": ""})
+    fig.update_traces(textposition="outside")
+    fig.update_layout(height=430, showlegend=False, coloraxis_showscale=False,
+                      yaxis=dict(categoryorder="total ascending"),
+                      margin=dict(l=10, r=10, t=10, b=10))
+    st.plotly_chart(fig, use_container_width=True)
+with colR:
+    fig2 = px.bar(cat.sort_values("unit_profit"), x="unit_profit", y="category_uz",
+                  orientation="h", color="unit_profit", color_continuous_scale="Greens",
+                  text=cat["unit_profit"].map(lambda v: f"${v:,.0f}"),
+                  labels={"unit_profit": "$ / dona", "category_uz": ""})
+    fig2.update_traces(textposition="outside")
+    fig2.update_layout(height=430, showlegend=False, coloraxis_showscale=False,
+                       yaxis=dict(categoryorder="total ascending"),
+                       margin=dict(l=10, r=10, t=10, b=10))
+    st.plotly_chart(fig2, use_container_width=True)
 
-st.subheader("Hudud kesimi")
+# ================= HUDUD KESIMI =================
+st.subheader("Hudud kesimida qayerda nima «o'lik» tovar")
 cr = dff.groupby(["category_uz", "region_uz"]).agg(
     profit=("net_profit", "sum"), units=("units_sold", "sum")).reset_index()
-cr["unit"] = cr["profit"] / cr["units"]
-piv_r = cr.pivot(index="region_uz", columns="category_uz", values="unit")
+cr["unit_profit"] = cr["profit"] / cr["units"]
+pivot = cr.pivot(index="region_uz", columns="category_uz", values="unit_profit")
 
-f3 = px.imshow(piv_r, text_auto=".0f", aspect="auto", color_continuous_scale="RdYlGn",
-               labels=dict(color="$ / dona"))
-f3.update_layout(height=360, margin=dict(l=10, r=10, t=10, b=10), xaxis_title="", yaxis_title="")
-st.plotly_chart(f3, use_container_width=True)
-st.caption("Yashil — yaxshi foyda, qizil — past. Har bir hudud o'z javonini shunga qarab to'ldirsin.")
+fig4 = px.imshow(pivot, text_auto=".0f", aspect="auto",
+                 color_continuous_scale="RdYlGn",
+                 labels=dict(color="$ / dona"))
+fig4.update_layout(height=360, margin=dict(l=10, r=10, t=10, b=10),
+                   xaxis_title="", yaxis_title="")
+st.plotly_chart(fig4, use_container_width=True)
+st.caption("Yashil = birlik foydasi yuqori (pul tikishga arziydi) · Qizil = past (qisqartirish kerak)")
 
-st.subheader("Qaytarilgan tovar — yashirin zarar")
+# ================= QAYTARILGAN TOVAR (yashirin zarar) =================
+st.subheader("Yashirin zarar: qaytarilgan tovarlar")
 ret = dff.groupby("category_uz").agg(
-    loss=("returns_loss", "sum"), units=("units_sold", "sum"), retn=("returns", "sum")).reset_index()
-ret["rate"] = ret["retn"] / ret["units"] * 100
+    loss=("returns_loss", "sum"), units=("units_sold", "sum"),
+    ret_n=("returns", "sum")).reset_index()
+ret["rate"] = ret["ret_n"] / ret["units"] * 100
 ret = ret.sort_values("loss", ascending=False)
 
-r_l, r_r = st.columns([3, 2])
-with r_l:
-    f4 = px.bar(ret, x="loss", y="category_uz", orientation="h", color="loss",
-                color_continuous_scale="Reds", text=ret["loss"].map(lambda v: f"${v/1e6:.2f}M"),
-                labels={"loss": "Qaytarish zarari ($)", "category_uz": ""})
-    f4.update_traces(textposition="outside")
-    f4.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
-                     yaxis=dict(categoryorder="total ascending"), margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(f4, use_container_width=True)
-with r_r:
+colA, colB = st.columns([3, 2])
+with colA:
+    fig5 = px.bar(ret, x="loss", y="category_uz", orientation="h",
+                  color="loss", color_continuous_scale="Reds",
+                  text=ret["loss"].map(lambda v: f"${v/1e6:.2f}M"),
+                  labels={"loss": "Qaytarilgan tovar zarari ($)", "category_uz": ""})
+    fig5.update_traces(textposition="outside")
+    fig5.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
+                       yaxis=dict(categoryorder="total ascending"),
+                       margin=dict(l=10, r=10, t=10, b=10))
+    st.plotly_chart(fig5, use_container_width=True)
+
+with colB:
+    st.markdown("#### Qaytarilish darajasi (%)")
     for _, r in ret.iterrows():
-        col = BAD if r["rate"] >= 4.9 else (MID if r["rate"] >= 4.5 else GOOD)
+        color = BAD if r["rate"] >= 4.9 else (MID if r["rate"] >= 4.5 else GOOD)
         st.markdown(
             f"<div style='display:flex;justify-content:space-between;padding:5px 0;"
-            f"border-bottom:1px solid #2b3a4a;'><span>{r['category_uz']}</span>"
+            f"border-bottom:1px solid #eee;'><span>{r['category_uz']}</span>"
             f"<b style='color:{col}'>{r['rate']:.2f}%</b></div>", unsafe_allow_html=True)
     st.caption("4.5% dan yuqori tovarlarni qaytish sababini tekshiring — bu yashirin zarar.")
 
@@ -324,39 +364,52 @@ if ok:
 st.subheader("Xarid tavsiyanomasi")
 rec = []
 for _, r in cat.iterrows():
-    if r["unit"] >= 150 and r["profit"] > 5e6:
-        rec.append((r["category_uz"], "KO'PROQ OL", GOOD, r["profit"], r["unit"]))
-    elif r["unit"] >= 60:
-        rec.append((r["category_uz"], "SAQLA", MID, r["profit"], r["unit"]))
+    if r["unit_profit"] >= 150 and r["profit"] > 5e6:
+        rec.append((r["category_uz"], "KO'PROQ OL", GOOD,
+                    f"Sof foyda ${r['profit']/1e6:.1f}M · ${r['unit_profit']:,.0f}/dona"))
+    elif r["unit_profit"] >= 60:
+        rec.append((r["category_uz"], "SAQLA (MO'TADIL)", MID,
+                    f"Sof foyda ${r['profit']/1e6:.1f}M · ${r['unit_profit']:,.0f}/dona"))
     else:
-        rec.append((r["category_uz"], "KAMAYTIR", BAD, r["profit"], r["unit"]))
-order = {"KO'PROQ OL": 0, "SAQLA": 1, "KAMAYTIR": 2}
+        rec.append((r["category_uz"], "KAMAYTIR / TO'XTAT", BAD,
+                    f"Sof foyda ${r['profit']/1e6:.1f}M · ${r['unit_profit']:,.0f}/dona"))
+
+order = {"KO'PROQ OL": 0, "SAQLA (MO'TADIL)": 1, "KAMAYTIR / TO'XTAT": 2}
 rec.sort(key=lambda x: order[x[1]])
 
-groups = {"KO'PROQ OL": ("🟢", "Ko'proq pul tiking", []),
-          "SAQLA": ("🟡", "Saqlang", []),
-          "KAMAYTIR": ("🔴", "Kamaytiring", [])}
-for row in rec:
-    groups[row[1]][2].append(row)
-
 cols = st.columns(3)
-for idx, key in enumerate(["KO'PROQ OL", "SAQLA", "KAMAYTIR"]):
-    emoji, title, items = groups[key]
-    with cols[idx]:
+buckets = {"KO'PROQ OL": [], "SAQLA (MO'TADIL)": [], "KAMAYTIR / TO'XTAT": []}
+for row in rec:
+    buckets[row[1]].append(row)
+
+titles = {"KO'PROQ OL": ("🟢", "Ko'proq pul tiking"),
+          "SAQLA (MO'TADIL)": ("🟡", "Saqlang — barqaror"),
+          "KAMAYTIR / TO'XTAT": ("🔴", "Kamaytiring / to'xtating")}
+for col, key in zip(cols, ["KO'PROQ OL", "SAQLA (MO'TADIL)", "KAMAYTIR / TO'XTAT"]):
+    emoji, title = titles[key]
+    with col:
         st.markdown(f"#### {emoji} {title}")
-        for name, _, color, profit, unit in items:
+        for name, _, color, note in buckets[key]:
             st.markdown(
-                f"<div style='border:1px solid #2b3a4a;border-left:4px solid {color};"
-                f"border-radius:10px;padding:13px 15px;margin:6px 0;background:#16202e;'>"
-                f"<div style='font-weight:700;color:#e6edf3'>{name}</div>"
-                f"<div style='color:#9aa7b8;font-size:.85rem'>"
+                f"<div style='border:1px solid #d3dde8;border-left:4px solid {color};"
+                f"border-radius:10px;padding:13px 15px;margin:6px 0;background:#f6f9fc;'>"
+                f"<div style='font-weight:700;color:#10233a'>{name}</div>"
+                f"<div style='color:#475467;font-size:.85rem'>"
                 f"Sof foyda &#36;{profit/1e6:.1f}M · &#36;{unit:,.0f}/dona</div></div>",
                 unsafe_allow_html=True)
 
-with st.expander("Ma'lumot sifati eslatmasi"):
+# ================= MA'LUMOT SIFATI (yashirin pattern oshkora) =================
+with st.expander("⚠️ Ma'lumot sifati va uslubiy eslatma (bosing)", expanded=False):
     st.markdown(
-        "1. Daromad qaytarilgan tovarlarni ayirmaydi — tuzatildi.  \n"
-        "2. 5 ta mahsulotda daromad ~10 baravar oshirib yozilgan (vergul xatosi) — tuzatildi.  \n"
-        "3. 3 ta qatorda qaytarish soni manfiy.  \n\n"
-        "Ma'lumotda tannarx (sotib olish narxi) yo'q, shuning uchun marja o'rniga "
-        "birlik foydasi ishlatilgan. Bu raqamlar o'tgan 2 yilga asoslangan.")
+        """
+**Yashirin pattern (tahlilda tuzatildi):**
+1. Daromad (revenue) qaytarilgan tovarlarni ayirmaydi — bu «hayoliy daromad» yaratadi. Tuzatildi.
+2. 5 ta mahsulotda daromad ~10 baravar oshirib yozilgan (vergul xatosi). Tuzatildi.
+3. 3 ta qatorda qaytarish soni manfiy.
+
+**Uslubiy cheklov:** ma'lumotda tovarning *sotib olish tannarxi (COGS)* yo'q. Shu sababli haqiqiy
+«marja foizi» o'rniga unga yaqin bo'lgan **birlik foydasi** (sotish narxi − chegirma − qaytarish
+− marketing) ishlatilgan. Tannarx berilsa, tavsiyalarni aniq marja foizi bo'yicha keskinlashtirish mumkin.
+
+**Eslatma:** chakana savdo o'zgaruvchan — bu raqamlar o'tgan 2 yil faktiga asoslangan, 100% aniqlik yo'q.
+""")
